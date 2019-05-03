@@ -33,7 +33,7 @@ From the terminal, run one of the following to make a local copy:
 
 ## Credits and Collaborations
 * David Marchante [dmarchante](https://github.com/dmarchante)
-* Matt Burger [dmarchante](https://github.com/mattburger)
+* Matt Burger [mattburger](https://github.com/mattburger)
 
 ## Time Estimation
 
