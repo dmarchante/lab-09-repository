@@ -1,4 +1,4 @@
-DROP TABLE IF EXISTS locations, weather, events;
+DROP TABLE IF EXISTS locations, weather, events, movies;
 
 CREATE TABLE locations (
   id SERIAL PRIMARY KEY, 
