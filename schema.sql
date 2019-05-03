@@ -3,8 +3,8 @@ DROP TABLE IF EXISTS locations, weather, events;
 CREATE TABLE locations (
   id SERIAL PRIMARY KEY, 
   formatted_query VARCHAR(255),
-  latitude DECIMAL,
-  longitude DECIMAL,
+  latitude NUMERIC,
+  longitude NUMERIC,
   search_query VARCHAR(255)
 );
 
@@ -22,5 +22,6 @@ CREATE TABLE events (
   event_name VARCHAR(255),
   event_date DATE,
   summary VARCHAR (255),
+  created_at BIGINT,
   location_id INTEGER NOT NULL REFERENCES locations(id) 
 );

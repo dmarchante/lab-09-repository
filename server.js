@@ -73,12 +73,12 @@ function searchToLatLong(query) {
         return superagent.get(url)
           .then(res => {
             let newLocation = new Location(query, res);
-            let insertStatement = 'INSERT INTO locations (search_query, formatted_query, latitude, longitude)  VALUES ($1, $2, $3, $4)';
-            let insertValues = [newLocation.latitude, newLocation.longitude, newLocation.formatted_query, newLocation.search_query];
+            let insertStatement = 'INSERT INTO locations (formatted_query, latitude, longitude, search_query)  VALUES ($1, $2, $3, $4)';
+            let insertValues = [newLocation.formatted_query,newLocation.latitude, newLocation.longitude, newLocation.search_query];
 
             client.query(insertStatement, insertValues)
               .then(pgResponse => {
-                newLocation.id - pgResponse.rows[0].id;
+                newLocation.id = pgResponse.rows[0].id;
                 return newLocation;
               });
 
@@ -93,8 +93,13 @@ function getWeather(request, response) {
   getData('weather', request, response);
 }
 
+// function getEvents(request, response) {
+//   getData('events', request, response);
+// }
+
 let timeouts = {
   weather: 15000,
+  event: 30000
 };
 
 function getData(table, request, response) {
@@ -108,19 +113,36 @@ function getData(table, request, response) {
         let dateCreatedTime = data.rows[0].created_at;
         let now = Date.now();
 
-        if(now - dateCreatedTime > timeouts.weather) {
-          //delete old data
-          let deleteStatement = `DELETE FROM ${table} WHERE location_id = $1`;
-
-          client.query(deleteStatement, values)
-            .then(() => {
-              getFreshWeatherData(request, response);
-            });
-        } else {
-          response.send(data.rows);
+        if (table === 'weather') {
+          if(now - dateCreatedTime > timeouts.weather) {
+            //delete old data
+            let deleteStatement = `DELETE FROM ${table} WHERE location_id = $1`;
+  
+            client.query(deleteStatement, values)
+              .then(() => {
+                getFreshWeatherData(request, response);
+              });
+          } else {
+            response.send(data.rows);
+          }
         }
+
+        // if (table === 'events') {
+        //   if(now - dateCreatedTime > timeouts.event) {
+        //     //delete old data
+        //     let deleteStatement = `DELETE FROM ${table} WHERE location_id = $1`;
+  
+        //     client.query(deleteStatement, values)
+        //       .then(() => {
+        //         getFreshEventData(request, response);
+        //       });
+        //   } else {
+        //     response.send(data.rows);
+        //   }
+        // }
       } else {
         getFreshWeatherData(request, response);
+        // getFreshEventData(request, response);
       }
     });
 };
@@ -143,6 +165,26 @@ function getFreshWeatherData(request, response) {
     })
     .catch(error => handleError(error, response));
 }
+
+// function getFreshEventData(request, response) {
+//   const eventLocation = request.query.data.search_query;
+//   console.log(request.query);
+//   const url = `https://www.eventbriteapi.com/v3/events/search?token=${process.env.EVENTBRITE_API_KEY}&location.address=${eventLocation}`;
+
+//   return superagent.get(url)
+//     .then(result => {
+//       const events = result.body.events.map(eventData => {
+//         let newEvent = new Event(eventData);
+//         let insertStatement = `INSERT INTO ${table} (link, event_name, event_date, summary, created_at, location_id)  VALUES ($1, $2, $3, $4, $5, $6)`;
+//         let insertValues = [newEvent.link, newEvent.event_name, Date.now(), newEvent.created_at, request.query.data.id];
+//         client.query(insertStatement, insertValues);
+
+//         return newEvent;
+//       });
+//       response.send(events);
+//     })
+//     .catch(error => handleError(error, response));
+// }
 
 function getEvents(request, response) {
   const eventLocation = request.query.data.search_query;
