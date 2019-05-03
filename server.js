@@ -173,7 +173,8 @@ function getData(table, request, response) {
 }
 
 function getFreshWeatherData(request, response) {
-  const url = `https://api.darksky.net/forecast/${process.env.WEATHER_API_KEY}/${request.query.data.latitude},${request.query.data.longitude}`;
+  const weatherLocation = request.query.data.longitude;
+  const url = `https://api.darksky.net/forecast/${process.env.WEATHER_API_KEY}/${request.query.data.latitude},${weatherLocation}`;
 
   return superagent.get(url)
     .then(result => {
@@ -212,7 +213,7 @@ function getFreshEventData(request, response) {
 
 function getFreshMovieData(request, response) {
   const movieLocation = request.query.data.search_query;
-  const url = `https://api.themoviedb.org/3/search/movie?api_key=${process.env.MOVIE_API_KEY}&query=J${request.query.data.search_query}`;
+  const url = `https://api.themoviedb.org/3/search/movie?api_key=${process.env.MOVIE_API_KEY}&query=${movieLocation}`;
 
   console.log(url);
 
