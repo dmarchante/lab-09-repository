@@ -76,7 +76,7 @@ function searchToLatLong(query) {
 
   return client.query(sqlStatement, values)
     .then((data) => {
-      if (data.rowCount > 0) {
+      if(data.rowCount > 0) {
         return data.rows[0];
       } else {
         const url = `https://maps.googleapis.com/maps/api/geocode/json?address=${query}&key=${process.env.GEOCODE_API_KEY}`;
@@ -84,16 +84,14 @@ function searchToLatLong(query) {
         return superagent.get(url)
           .then(res => {
             let newLocation = new Location(query, res);
-            let insertStatement = 'INSERT INTO locations (formatted_query, latitude, longitude, search_query)  VALUES ($1, $2, $3, $4)';
-            let insertValues = [newLocation.formatted_query, newLocation.latitude, newLocation.longitude, newLocation.search_query];
+            let insertStatement = 'INSERT INTO locations (formatted_query, latitude, longitude, search_query)  VALUES ($1, $2, $3, $4) returning id';
+            let insertValues = [newLocation.formatted_query,newLocation.latitude, newLocation.longitude, newLocation.search_query];
 
-            client.query(insertStatement, insertValues)
+            return client.query(insertStatement, insertValues)
               .then(pgResponse => {
                 newLocation.id = pgResponse.rows[0].id;
                 return newLocation;
               });
-
-            return newLocation;
           })
           .catch(error => handleError(error));
       }
@@ -123,12 +121,12 @@ function getData(table, request, response) {
 
   return client.query(sqlStatement, values)
     .then((data) => {
-      if (data.rowCount > 0) {
-        let dateCreatedTime = data.rows[0].created_at;
-        let now = Date.now();
+      if (table === 'weather') {
+        if (data.rowCount > 0) {
+          let dateCreatedTime = data.rows[0].created_at;
+          let now = Date.now();
 
-        if (table === 'weather') {
-          if (now - dateCreatedTime > timeouts.weather) {
+          if(now - dateCreatedTime > timeouts.weather) {
             //delete old data
             let deleteStatement = `DELETE FROM ${table} WHERE location_id = $1`;
 
@@ -139,8 +137,15 @@ function getData(table, request, response) {
           } else {
             response.send(data.rows);
           }
-        } else if (table === 'events') {
-          if (now - dateCreatedTime > timeouts.events) {
+        } else {
+          getFreshWeatherData(request, response);
+        }
+      } else if (table === 'events') {
+        if (data.rowCount > 0) {
+          let dateCreatedTime = data.rows[0].created_at;
+          let now = Date.now();
+
+          if(now - dateCreatedTime > timeouts.weather) {
             //delete old data
             let deleteStatement = `DELETE FROM ${table} WHERE location_id = $1`;
 
@@ -151,8 +156,15 @@ function getData(table, request, response) {
           } else {
             response.send(data.rows);
           }
-        } else if (table === 'movies') {
-          if (now - dateCreatedTime > timeouts.events) {
+        } else {
+          getFreshEventData(request, response);
+        }
+      } else if (table === 'movies') {
+        if (data.rowCount > 0) {
+          let dateCreatedTime = data.rows[0].created_at;
+          let now = Date.now();
+
+          if(now - dateCreatedTime > timeouts.weather) {
             //delete old data
             let deleteStatement = `DELETE FROM ${table} WHERE location_id = $1`;
 
@@ -163,18 +175,15 @@ function getData(table, request, response) {
           } else {
             response.send(data.rows);
           }
+        } else {
+          getFreshMovieData(request, response);
         }
-      } else {
-        getFreshWeatherData(request, response);
-        getFreshEventData(request, response);
-        getFreshMovieData(request, response);
       }
     });
 }
 
 function getFreshWeatherData(request, response) {
-  const weatherLocation = request.query.data.longitude;
-  const url = `https://api.darksky.net/forecast/${process.env.WEATHER_API_KEY}/${request.query.data.latitude},${weatherLocation}`;
+  const url = `https://api.darksky.net/forecast/${process.env.WEATHER_API_KEY}/${request.query.data.latitude},${request.query.data.longitude}`;
 
   return superagent.get(url)
     .then(result => {
@@ -201,7 +210,7 @@ function getFreshEventData(request, response) {
       const events = result.body.events.map(eventData => {
         let newEvent = new Event(eventData);
         let insertStatement = 'INSERT INTO events (link, event_name, event_date, summary, created_at, location_id)  VALUES ($1, $2, $3, $4, $5, $6)';
-        let insertValues = [newEvent.link, newEvent.event_name, newEvent.event_date, newEvent.summary, Date.now(), request.query.data.id];
+        let insertValues = [newEvent.link, newEvent.event_name, newEvent.event_date, newEvent.summary, Date.now(),request.query.data.id];
         client.query(insertStatement, insertValues);
 
         return newEvent;
@@ -214,8 +223,6 @@ function getFreshEventData(request, response) {
 function getFreshMovieData(request, response) {
   const movieLocation = request.query.data.search_query;
   const url = `https://api.themoviedb.org/3/search/movie?api_key=${process.env.MOVIE_API_KEY}&query=${movieLocation}`;
-
-  console.log(url);
 
   return superagent.get(url)
     .then(result => {
