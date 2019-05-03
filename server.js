@@ -93,9 +93,9 @@ function getWeather(request, response) {
   getData('weather', request, response);
 }
 
-// function getEvents(request, response) {
-//   getData('events', request, response);
-// }
+function getEvents(request, response) {
+  getData('events', request, response);
+}
 
 let timeouts = {
   weather: 15000,
@@ -105,7 +105,6 @@ let timeouts = {
 function getData(table, request, response) {
   let sqlStatement = `SELECT * FROM ${table} WHERE location_id = $1`;
   let values = [request.query.data.id];
-  client.query(sqlStatement, values);
 
   return client.query(sqlStatement, values)
     .then((data) => {
@@ -117,7 +116,7 @@ function getData(table, request, response) {
           if(now - dateCreatedTime > timeouts.weather) {
             //delete old data
             let deleteStatement = `DELETE FROM ${table} WHERE location_id = $1`;
-  
+
             client.query(deleteStatement, values)
               .then(() => {
                 getFreshWeatherData(request, response);
@@ -125,27 +124,25 @@ function getData(table, request, response) {
           } else {
             response.send(data.rows);
           }
-        }
+        } else if (table === 'events') {
+          if(now - dateCreatedTime > timeouts.events) {
+            //delete old data
+            let deleteStatement = `DELETE FROM ${table} WHERE location_id = $1`;
 
-        // if (table === 'events') {
-        //   if(now - dateCreatedTime > timeouts.event) {
-        //     //delete old data
-        //     let deleteStatement = `DELETE FROM ${table} WHERE location_id = $1`;
-  
-        //     client.query(deleteStatement, values)
-        //       .then(() => {
-        //         getFreshEventData(request, response);
-        //       });
-        //   } else {
-        //     response.send(data.rows);
-        //   }
-        // }
+            client.query(deleteStatement, values)
+              .then(() => {
+                getFreshEventData(request, response);
+              });
+          } else {
+            response.send(data.rows);
+          }
+        }
       } else {
         getFreshWeatherData(request, response);
-        // getFreshEventData(request, response);
+        getFreshEventData(request, response);
       }
     });
-};
+}
 
 function getFreshWeatherData(request, response) {
   const url = `https://api.darksky.net/forecast/${process.env.WEATHER_API_KEY}/${request.query.data.latitude},${request.query.data.longitude}`;
@@ -166,43 +163,22 @@ function getFreshWeatherData(request, response) {
     .catch(error => handleError(error, response));
 }
 
-// function getFreshEventData(request, response) {
-//   const eventLocation = request.query.data.search_query;
-//   console.log(request.query);
-//   const url = `https://www.eventbriteapi.com/v3/events/search?token=${process.env.EVENTBRITE_API_KEY}&location.address=${eventLocation}`;
-
-//   return superagent.get(url)
-//     .then(result => {
-//       const events = result.body.events.map(eventData => {
-//         let newEvent = new Event(eventData);
-//         let insertStatement = `INSERT INTO ${table} (link, event_name, event_date, summary, created_at, location_id)  VALUES ($1, $2, $3, $4, $5, $6)`;
-//         let insertValues = [newEvent.link, newEvent.event_name, Date.now(), newEvent.created_at, request.query.data.id];
-//         client.query(insertStatement, insertValues);
-
-//         return newEvent;
-//       });
-//       response.send(events);
-//     })
-//     .catch(error => handleError(error, response));
-// }
-
-function getEvents(request, response) {
+function getFreshEventData(request, response) {
   const eventLocation = request.query.data.search_query;
-  let sqlSelectFormattedQuery = 'SELECT * FROM locations WHERE search_query = $1';
-  let values = [eventLocation];
+  console.log(request.query);
+  const url = `https://www.eventbriteapi.com/v3/events/search?token=${process.env.EVENTBRITE_API_KEY}&location.address=${eventLocation}`;
 
-  return client.query(sqlSelectFormattedQuery,values)
-    .then(() => {
-      const url = `https://www.eventbriteapi.com/v3/events/search?token=${process.env.EVENTBRITE_API_KEY}&location.address=${eventLocation}`;
+  return superagent.get(url)
+    .then(result => {
+      const events = result.body.events.map(eventData => {
+        let newEvent = new Event(eventData);
+        let insertStatement = 'INSERT INTO events (link, event_name, event_date, summary, created_at, location_id)  VALUES ($1, $2, $3, $4, $5, $6)';
+        let insertValues = [newEvent.link, newEvent.event_name, newEvent.event_date, newEvent.summary, Date.now(),request.query.data.id];
+        client.query(insertStatement, insertValues);
 
-      return superagent.get(url)
-        .then(result => {
-          const events = result.body.events.map(eventData => {
-            let event = new Event(eventData);
-            return event;
-          });
-          response.send(events);
-        })
-        .catch(error => handleError(error, response));
-    });
+        return newEvent;
+      });
+      response.send(events);
+    })
+    .catch(error => handleError(error, response));
 }
