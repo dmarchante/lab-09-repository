@@ -97,10 +97,6 @@ let timeouts = {
   weather: 15000,
 };
 
-// let dataFreshFunctions = {
-//   weather: getFreshWeatherData,
-// };
-
 function getData(table, request, response) {
   let sqlStatement = `SELECT * FROM ${table} WHERE location_id = $1`;
   let values = [request.query.data.id];
