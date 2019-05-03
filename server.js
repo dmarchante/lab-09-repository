@@ -28,6 +28,7 @@ app.get('/location', (request, response) => {
 
 app.get('/weather', getWeather);
 app.get('/events', getEvents);
+app.get('/movies', getMovies);
 
 
 // Make sure the server is listening for requests
@@ -59,13 +60,23 @@ function Event(event) {
   this.summary = event.summary;
 }
 
+function Movies(movie) {
+  this.title = movie.title;
+  this.overview = movie.overview;
+  this.average_votes = movie.vote_average;
+  this.total_votes = movie.vote_count;
+  this.image_url = movie.poster_path;
+  this.popularity = movie.popularity;
+  this.released_on = movie.released_date;
+}
+
 function searchToLatLong(query) {
   let sqlStatement = 'SELECT * FROM locations WHERE search_query = $1';
   let values = [query];
 
   return client.query(sqlStatement, values)
     .then((data) => {
-      if(data.rowCount > 0) {
+      if (data.rowCount > 0) {
         return data.rows[0];
       } else {
         const url = `https://maps.googleapis.com/maps/api/geocode/json?address=${query}&key=${process.env.GEOCODE_API_KEY}`;
@@ -74,7 +85,7 @@ function searchToLatLong(query) {
           .then(res => {
             let newLocation = new Location(query, res);
             let insertStatement = 'INSERT INTO locations (formatted_query, latitude, longitude, search_query)  VALUES ($1, $2, $3, $4)';
-            let insertValues = [newLocation.formatted_query,newLocation.latitude, newLocation.longitude, newLocation.search_query];
+            let insertValues = [newLocation.formatted_query, newLocation.latitude, newLocation.longitude, newLocation.search_query];
 
             client.query(insertStatement, insertValues)
               .then(pgResponse => {
@@ -97,6 +108,10 @@ function getEvents(request, response) {
   getData('events', request, response);
 }
 
+function getMovies(request, response) {
+  getData('movies', request, response);
+}
+
 let timeouts = {
   weather: 15000,
   event: 30000
@@ -113,7 +128,7 @@ function getData(table, request, response) {
         let now = Date.now();
 
         if (table === 'weather') {
-          if(now - dateCreatedTime > timeouts.weather) {
+          if (now - dateCreatedTime > timeouts.weather) {
             //delete old data
             let deleteStatement = `DELETE FROM ${table} WHERE location_id = $1`;
 
@@ -125,7 +140,7 @@ function getData(table, request, response) {
             response.send(data.rows);
           }
         } else if (table === 'events') {
-          if(now - dateCreatedTime > timeouts.events) {
+          if (now - dateCreatedTime > timeouts.events) {
             //delete old data
             let deleteStatement = `DELETE FROM ${table} WHERE location_id = $1`;
 
@@ -136,10 +151,23 @@ function getData(table, request, response) {
           } else {
             response.send(data.rows);
           }
+        } else if (table === 'movies') {
+          if (now - dateCreatedTime > timeouts.events) {
+            //delete old data
+            let deleteStatement = `DELETE FROM ${table} WHERE location_id = $1`;
+
+            client.query(deleteStatement, values)
+              .then(() => {
+                getFreshMovieData(request, response);
+              });
+          } else {
+            response.send(data.rows);
+          }
         }
       } else {
         getFreshWeatherData(request, response);
         getFreshEventData(request, response);
+        getFreshMovieData(request, response);
       }
     });
 }
@@ -165,7 +193,6 @@ function getFreshWeatherData(request, response) {
 
 function getFreshEventData(request, response) {
   const eventLocation = request.query.data.search_query;
-  console.log(request.query);
   const url = `https://www.eventbriteapi.com/v3/events/search?token=${process.env.EVENTBRITE_API_KEY}&location.address=${eventLocation}`;
 
   return superagent.get(url)
@@ -173,12 +200,34 @@ function getFreshEventData(request, response) {
       const events = result.body.events.map(eventData => {
         let newEvent = new Event(eventData);
         let insertStatement = 'INSERT INTO events (link, event_name, event_date, summary, created_at, location_id)  VALUES ($1, $2, $3, $4, $5, $6)';
-        let insertValues = [newEvent.link, newEvent.event_name, newEvent.event_date, newEvent.summary, Date.now(),request.query.data.id];
+        let insertValues = [newEvent.link, newEvent.event_name, newEvent.event_date, newEvent.summary, Date.now(), request.query.data.id];
         client.query(insertStatement, insertValues);
 
         return newEvent;
       });
       response.send(events);
+    })
+    .catch(error => handleError(error, response));
+}
+
+function getFreshMovieData(request, response) {
+  const movieLocation = request.query.data.search_query;
+  const url = `https://api.themoviedb.org/3/search/movie?api_key=${process.env.MOVIE_API_KEY}&query=J${request.query.data.search_query}`;
+
+  console.log(url);
+
+  return superagent.get(url)
+    .then(result => {
+      const movies = result.body.results.map(movieData => {
+        let newMovie = new Movies(movieData);
+        let insertStatement = 'INSERT INTO movies (title, overview, average_votes, total_votes, image_url, popularity, released_on, created_at, location_id)  VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)';
+        let insertValues = [newMovie.title, newMovie.overview, newMovie.average_votes, newMovie.total_votes,newMovie.image_url, newMovie.popularity, newMovie.released_on, Date.now(), request.query.data.id];
+
+        client.query(insertStatement, insertValues);
+
+        return newMovie;
+      });
+      response.send(movies);
     })
     .catch(error => handleError(error, response));
 }

@@ -25,3 +25,16 @@ CREATE TABLE events (
   created_at BIGINT,
   location_id INTEGER NOT NULL REFERENCES locations(id) 
 );
+
+CREATE TABLE movies (
+  --id SERIAL PRIMARY KEY,
+  title VARCHAR (255),
+  overview TEXT,
+  average_votes DECIMAL,
+  total_votes NUMERIC,
+  image_url VARCHAR (255),
+  popularity DECIMAL,
+  released_on DATE,
+  created_at BIGINT,
+  location_id INTEGER NOT NULL REFERENCES locations(id)
+)
